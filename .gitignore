@@ -2,3 +2,5 @@ config/.env
 
 
 data/bronze/*
+
+.venv
