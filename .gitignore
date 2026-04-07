@@ -1,4 +1,6 @@
 config/.env
 
 
-data/bronze
+data/bronze/*
+
+data/bronze/silver
