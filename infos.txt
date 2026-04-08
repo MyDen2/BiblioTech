@@ -1,0 +1,1 @@
+J’ai mis en place un Data Lake local avec MinIO, organisé en bronze, silver et gold. Les données sont stockées en Parquet et accessibles via une API compatible S3. Le pipeline ETL automatise le nettoyage, les contrôles qualité et l’alimentation des tables analytiques.

@@ -77,3 +77,8 @@ SELECT
 FROM ratings r
 GROUP BY r.user_id
 ORDER BY ratings_count DESC;
+
+-- J’ai encapsulé mes requêtes analytiques dans des vues SQL pour permettre une réutilisation côté API et dashboard, tout en séparant la logique métier de la couche applicative.
+
+-- J’ai mis en place une architecture relationnelle sur PostgreSQL avec modélisation des entités principales books, users, ratings et une table analytique book_popularity. 
+-- Des vues SQL ont été créées pour exposer des indicateurs réutilisables sur les livres, les auteurs, les années et l’activité utilisateur.
