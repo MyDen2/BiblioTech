@@ -1,38 +1,54 @@
 # Ce loader Python :
 
-# lit les fichiers parquet,
+# lit les fichiers :
+# - silver/books_clean.parquet
+# - silver/users_clean.parquet
+# - silver/ratings_joinable.parquet
 # envoie les données vers Postgres,
 # log le nombre de lignes chargées.
 
-from pathlib import Path
-import pandas as pd
+# MinIO silver/gold → pandas → PostgreSQL
+
+import os
 from sqlalchemy import create_engine, text
 
 from src.utils.logger import setup_logger
+from src.utils.s3_io import read_parquet_from_s3
+from dotenv import load_dotenv
+from pathlib import Path
 
 logger = setup_logger("postgres_loader")
 
-BOOKS_PATH = Path("data/silver/books_clean.parquet")
-USERS_PATH = Path("data/silver/users_clean.parquet")
-RATINGS_PATH = Path("data/silver/ratings_joinable.parquet")
-POPULARITY_PATH = Path("data/gold/book_popularity.parquet")
+BASE_DIR = Path(__file__).resolve().parents[2]
+ENV_PATH = BASE_DIR / "config" / ".env"
+load_dotenv(dotenv_path=ENV_PATH)
 
+DB_USER = os.getenv("POSTGRES_USER")
+DB_PASSWORD = os.getenv("POSTGRES_PASSWORD")
+DB_HOST = os.getenv("POSTGRES_PUBLIC_HOST", "localhost")
+DB_PORT = os.getenv("POSTGRES_PORT", "5432")
+DB_NAME = os.getenv("POSTGRES_DB")
 
-DB_USER = "bibliotech"
-DB_PASSWORD = "bibliotech"
-DB_HOST = "localhost"
-DB_PORT = 5432
-DB_NAME = "bibliotech_db"
+SILVER_BUCKET = "silver"
+GOLD_BUCKET = "gold"
+
+BOOKS_KEY = "books_clean.parquet"
+USERS_KEY = "users_clean.parquet"
+RATINGS_KEY = "ratings_joinable.parquet"
+POPULARITY_KEY = "book_popularity.parquet"
 
 
 def get_engine():
+    if not all([DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME]):
+        raise ValueError("Missing PostgreSQL configuration in config/.env")
+
     url = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
     return create_engine(url)
 
 
-def load_parquet(path: Path, name: str) -> pd.DataFrame:
-    logger.info(f"Loading {name} from {path}")
-    df = pd.read_parquet(path)
+def load_table_from_s3(bucket: str, key: str, name: str):
+    logger.info(f"Loading {name} from s3://{bucket}/{key}")
+    df = read_parquet_from_s3(bucket, key)
     logger.info(f"{name} shape: {df.shape}")
     return df
 
@@ -44,7 +60,7 @@ def truncate_tables(engine) -> None:
     logger.info("Truncate completed")
 
 
-def load_table(df: pd.DataFrame, table_name: str, engine) -> None:
+def load_table(df, table_name: str, engine) -> None:
     logger.info(f"Loading dataframe into table '{table_name}'")
     df.to_sql(
         table_name,
@@ -61,10 +77,10 @@ def main() -> None:
     try:
         engine = get_engine()
 
-        books_df = load_parquet(BOOKS_PATH, "books")
-        users_df = load_parquet(USERS_PATH, "users")
-        ratings_df = load_parquet(RATINGS_PATH, "ratings_joinable")
-        popularity_df = load_parquet(POPULARITY_PATH, "book_popularity")
+        books_df = load_table_from_s3(SILVER_BUCKET, BOOKS_KEY, "books")
+        users_df = load_table_from_s3(SILVER_BUCKET, USERS_KEY, "users")
+        ratings_df = load_table_from_s3(SILVER_BUCKET, RATINGS_KEY, "ratings_joinable")
+        popularity_df = load_table_from_s3(GOLD_BUCKET, POPULARITY_KEY, "book_popularity")
 
         truncate_tables(engine)
 

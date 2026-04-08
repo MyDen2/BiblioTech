@@ -1,26 +1,28 @@
-# - charge books_clean.parquet
-# - charge ratings_joinable.parquet
+# - lit depuis silver sur MinIO
 # - agrège :
     # count(rating)
     # mean(rating)
 # - joint avec les métadonnées livres
-# - exporte en data/gold/book_popularity.parquet
+# - écrit dans gold sur MinIO
 
-from pathlib import Path
 import pandas as pd
 
 from src.utils.logger import setup_logger
+from src.utils.s3_io import read_parquet_from_s3, write_parquet_to_s3
 
 logger = setup_logger("build_book_popularity")
 
-BOOKS_PATH = Path("data/silver/books_clean.parquet")
-RATINGS_PATH = Path("data/silver/ratings_joinable.parquet")
-OUTPUT_PATH = Path("data/gold/book_popularity.parquet")
+SILVER_BUCKET = "silver"
+GOLD_BUCKET = "gold"
+
+BOOKS_KEY = "books_clean.parquet"
+RATINGS_KEY = "ratings_joinable.parquet"
+OUTPUT_KEY = "book_popularity.parquet"
 
 
-def load_parquet(path: Path, name: str) -> pd.DataFrame:
-    logger.info(f"Loading {name} from {path}")
-    df = pd.read_parquet(path)
+def load_parquet(bucket: str, key: str, name: str) -> pd.DataFrame:
+    logger.info(f"Loading {name} from s3://{bucket}/{key}")
+    df = read_parquet_from_s3(bucket, key)
     logger.info(f"{name} shape: {df.shape}")
     return df
 
@@ -28,7 +30,6 @@ def load_parquet(path: Path, name: str) -> pd.DataFrame:
 def build_book_popularity(books_df: pd.DataFrame, ratings_df: pd.DataFrame) -> pd.DataFrame:
     logger.info("Building book popularity gold table")
 
-    # Agrégation ratings par livre
     ratings_agg = (
         ratings_df
         .groupby("isbn", as_index=False)
@@ -40,15 +41,11 @@ def build_book_popularity(books_df: pd.DataFrame, ratings_df: pd.DataFrame) -> p
 
     logger.info(f"Aggregated ratings shape: {ratings_agg.shape}")
 
-    # Jointure avec métadonnées livres
     gold_df = books_df.merge(ratings_agg, on="isbn", how="inner")
-
     logger.info(f"Gold table shape after join: {gold_df.shape}")
 
-    # Arrondir note moyenne
     gold_df["average_rating"] = gold_df["average_rating"].round(2)
 
-    # Score pondéré simple
     global_mean = gold_df["average_rating"].mean()
     min_votes = 10
 
@@ -57,7 +54,6 @@ def build_book_popularity(books_df: pd.DataFrame, ratings_df: pd.DataFrame) -> p
         + (min_votes / (gold_df["ratings_count"] + min_votes)) * global_mean
     ).round(2)
 
-    # Tri utile
     gold_df = gold_df.sort_values(
         by=["weighted_score", "ratings_count"],
         ascending=[False, False]
@@ -69,20 +65,19 @@ def build_book_popularity(books_df: pd.DataFrame, ratings_df: pd.DataFrame) -> p
     return gold_df
 
 
-def save_parquet(df: pd.DataFrame, output_path: Path) -> None:
-    logger.info(f"Saving gold table to {output_path}")
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_parquet(output_path, index=False)
+def save_parquet(df: pd.DataFrame) -> None:
+    logger.info(f"Saving gold table to s3://{GOLD_BUCKET}/{OUTPUT_KEY}")
+    write_parquet_to_s3(df, GOLD_BUCKET, OUTPUT_KEY)
     logger.info("Save completed")
 
 
 def main() -> None:
     try:
-        books_df = load_parquet(BOOKS_PATH, "books")
-        ratings_df = load_parquet(RATINGS_PATH, "ratings_joinable")
+        books_df = load_parquet(SILVER_BUCKET, BOOKS_KEY, "books")
+        ratings_df = load_parquet(SILVER_BUCKET, RATINGS_KEY, "ratings_joinable")
 
         gold_df = build_book_popularity(books_df, ratings_df)
-        save_parquet(gold_df, OUTPUT_PATH)
+        save_parquet(gold_df)
 
         logger.info("Book popularity gold table built successfully")
 

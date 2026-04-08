@@ -1,19 +1,26 @@
-from pathlib import Path
+# Ce fihier a pour but de : 
+# - lire books_clean.parquet, users_clean.parquet, ratings_clean.parquet depuis silver
+# - filtrer les ratings joignables
+# - écrire ratings_joinable.parquet dans silver
+
 import pandas as pd
 
 from src.utils.logger import setup_logger
+from src.utils.s3_io import read_parquet_from_s3, write_parquet_to_s3
 
 logger = setup_logger("filter_joinable_ratings")
 
-BOOKS_PATH = Path("data/silver/books_clean.parquet")
-USERS_PATH = Path("data/silver/users_clean.parquet")
-RATINGS_PATH = Path("data/silver/ratings_clean.parquet")
-OUTPUT_PATH = Path("data/silver/ratings_joinable.parquet")
+SILVER_BUCKET = "silver"
+
+BOOKS_KEY = "books_clean.parquet"
+USERS_KEY = "users_clean.parquet"
+RATINGS_KEY = "ratings_clean.parquet"
+OUTPUT_KEY = "ratings_joinable.parquet"
 
 
-def load_parquet(path: Path, name: str) -> pd.DataFrame:
-    logger.info(f"Loading {name} from {path}")
-    df = pd.read_parquet(path)
+def load_parquet(key: str, name: str) -> pd.DataFrame:
+    logger.info(f"Loading {name} from s3://{SILVER_BUCKET}/{key}")
+    df = read_parquet_from_s3(SILVER_BUCKET, key)
     logger.info(f"{name} shape: {df.shape}")
     return df
 
@@ -44,21 +51,20 @@ def filter_joinable_ratings(
     return filtered_df
 
 
-def save_parquet(df: pd.DataFrame, output_path: Path) -> None:
-    logger.info(f"Saving joinable ratings to {output_path}")
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_parquet(output_path, index=False)
+def save_parquet(df: pd.DataFrame) -> None:
+    logger.info(f"Saving joinable ratings to s3://{SILVER_BUCKET}/{OUTPUT_KEY}")
+    write_parquet_to_s3(df, SILVER_BUCKET, OUTPUT_KEY)
     logger.info("Save completed")
 
 
 def main() -> None:
     try:
-        books_df = load_parquet(BOOKS_PATH, "books")
-        users_df = load_parquet(USERS_PATH, "users")
-        ratings_df = load_parquet(RATINGS_PATH, "ratings")
+        books_df = load_parquet(BOOKS_KEY, "books")
+        users_df = load_parquet(USERS_KEY, "users")
+        ratings_df = load_parquet(RATINGS_KEY, "ratings")
 
         joinable_df = filter_joinable_ratings(ratings_df, books_df, users_df)
-        save_parquet(joinable_df, OUTPUT_PATH)
+        save_parquet(joinable_df)
 
         logger.info("Joinable ratings filtering completed successfully")
 

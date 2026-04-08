@@ -398,3 +398,6 @@ BiblioTech/
 ├── README.md
 └── requirements.txt
 
+
+# Lancer le projet 
+python -m src.main full_pipeline
