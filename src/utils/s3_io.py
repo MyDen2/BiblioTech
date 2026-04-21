@@ -6,6 +6,7 @@ from io import BytesIO
 import boto3
 import pandas as pd
 from dotenv import load_dotenv
+from botocore.config import Config
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 ENV_PATH = BASE_DIR / "config" / ".env"
@@ -19,12 +20,20 @@ MINIO_ROOT_PASSWORD = os.getenv("MINIO_ROOT_PASSWORD")
 def get_s3_client():
     if not MINIO_ROOT_USER or not MINIO_ROOT_PASSWORD:
         raise ValueError("Missing MinIO credentials in config/.env")
+    
+    # s3_config = Config(
+    #     signature_version="s3v4",
+    #     connect_timeout=10, #ajout timeout pour éviter un timeout
+    #     read_timeout=120,
+    #     retries={"max_attempts": 3, "mode": "standard"},
+    # )
 
     return boto3.client(
         "s3",
         endpoint_url=MINIO_ENDPOINT,
         aws_access_key_id=MINIO_ROOT_USER,
         aws_secret_access_key=MINIO_ROOT_PASSWORD,
+        #config=s3_config,
     )
 
 

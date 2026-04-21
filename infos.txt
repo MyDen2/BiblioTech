@@ -1,1 +1,11 @@
 J’ai mis en place un Data Lake local avec MinIO, organisé en bronze, silver et gold. Les données sont stockées en Parquet et accessibles via une API compatible S3. Le pipeline ETL automatise le nettoyage, les contrôles qualité et l’alimentation des tables analytiques.
+
+La majorité des utilisateurs étant très peu actifs, j’ai identifié un problème de cold start et de sparsité, ce qui m’a amené à envisager des filtrages et des approches adaptées pour la recommandation.
+
+L’analyse exploratoire montre que la majorité des interactions est concentrée sur un petit nombre d’utilisateurs très actifs et de livres populaires, ce qui crée une forte sparsité et impose des choix spécifiques pour les modèles de recommandation.
+
+Les livres ayant peu de ratings présentent une forte variabilité de notes, ce qui rend leur évaluation peu fiable. J’ai donc intégré un score pondéré pour corriger ce biais et améliorer la qualité des recommandations.
+
+J’ai distingué la popularité et la qualité des livres, et j’ai appliqué un seuil de fiabilité pour éviter les biais liés aux faibles volumes de données.
+
+Bien que la corrélation soit statistiquement significative, elle est pratiquement nulle, ce qui montre que la popularité n’est pas un bon indicateur de qualité.
