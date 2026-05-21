@@ -4,3 +4,5 @@ config/.env
 data/bronze/*
 
 .venv/
+
+models/reco/*
