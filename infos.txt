@@ -9,3 +9,29 @@ Les livres ayant peu de ratings présentent une forte variabilité de notes, ce 
 J’ai distingué la popularité et la qualité des livres, et j’ai appliqué un seuil de fiabilité pour éviter les biais liés aux faibles volumes de données.
 
 Bien que la corrélation soit statistiquement significative, elle est pratiquement nulle, ce qui montre que la popularité n’est pas un bon indicateur de qualité.
+
+### Nettoyage des données
+
+Les données ont été nettoyées à plusieurs niveaux dans le pipeline :
+
+#### 1. Nettoyage technique (Silver)
+- suppression des valeurs incohérentes
+- gestion des valeurs manquantes
+- typage des colonnes
+
+#### 2. Contrôle de qualité
+- suppression des ratings orphelins
+- vérification de l’intégrité entre tables
+
+#### 3. Nettoyage pour le machine learning (Pre-ML)
+- filtrage des utilisateurs peu actifs
+- filtrage des livres peu notés
+
+
+### Conclusion
+
+Les données sont désormais :
+
+- propres
+- cohérentes
+- adaptées à l’apprentissage des modèles de recommandation

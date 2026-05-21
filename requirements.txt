@@ -13,6 +13,7 @@ fastapi
 uvicorn
 
 matplotlib
+scikit-learn
 seaborn
 plotly
 
