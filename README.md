@@ -1,403 +1,355 @@
-# BiblioTech : Plateforme Data & IA d’analyse du marché du livre et de recommandation intelligente.
-
-*** Contexte ***
-
-Le marché du livre génère un volume important de données hétérogènes : métadonnées (genres, auteurs, dates), données chiffrées (notes, popularité) et données textuelles (résumés, avis lecteurs).
-
-L’objectif du projet est de centraliser ces données, analyser les tendances du marché, identifier les facteurs de succès d’un livre et exploiter ces résultats via des modèles de Machine Learning et une API de recommandation.
-
-BiblioTech est une plateforme Data & Intelligence Artificielle permettant de centraliser, analyser et exploiter des données issues du marché du livre.
-Le projet combine une architecture Data Lake (bronze/silver/gold), des pipelines ETL, des analyses statistiques, des modèles de Machine Learning et une API de recommandation industrialisée.
-
-## 🧱 Vue d’ensemble de BiblioTech
-
-Cette plateforme doit gérer :
-
-• 📚 Métadonnées structurées (livres, auteurs, genres)
-
-• 📝 Données textuelles variables (avis)
-
-• 📊 Tables analytiques (KPIs marché)
-
-• 🧠 Features ML
-
-• 🗄️ Données brutes historisées
-
-Séparation des responsabilités:
-
-### 🪣 1️⃣ MinIO (S3 compatible) → Le Data Lake
-
-#### 🎯 Rôle
-
-Stocker les données brutes et transformées.
-
-Architecture :
-
-bronze → brut
-
-silver → nettoyé
-
-gold → analytique
-
-#### 🧠 Pourquoi pas Postgres pour ça ?
-
-Parce que :
-
-Le brut peut être volumineux
-
-Format JSON / CSV / Parquet
-
-On veut historiser
-
-On veut stocker des dumps
-
-On veut simuler AWS S3 (standard industrie)
-
-#### 🎓 Pourquoi MinIO ?
-
-• Compatible S3
-
-• Léger
-
-• Local
-
-• Standard cloud industry
-
-• Idéal pour Data Lake
-
-👉 MinIO = ton stockage objet
-👉 Il remplace AWS S3 en local
-
-### 🗄️ 2️⃣ PostgreSQL → Données structurées analytiques
-
-#### 🎯 Rôle
-
-Stocker les données propres, relationnelles et requêtables.
-
-Exemples :
-
-• books
-
-• authors
-
-• genres
-
-• market_metrics
-
-#### 🧠 Pourquoi relationnel ?
-
-Parce que :
-
-• Relations claires (1 livre → plusieurs genres)
-
-• Contraintes d’intégrité
-
-• JOINS
-
-• Agrégations SQL
-
-• Vues analytiques
-
-#### 🎓 Pourquoi Postgres ?
-
-• Stable
-
-• Standard industrie
-
-• Puissant
-
-• Compatible BI
-
-• Excellent pour analytics
-
-### 🍃 3️⃣ MongoDB → Données semi-structurées (avis)
-
-#### 🎯 Rôle
-
-Stocker les avis utilisateurs.
-
-Pourquoi ?
-Un avis peut contenir :
-
-• texte
-
-• rating
-
-• date
-
-• langue
-
-• metadata optionnelle
-
-Et demain ?
-
-• tags
-
-• émotions détectées
-
-• score NLP
-
-• entités nommées
-
-#### 🧠 Pourquoi pas SQL ?
-
-Parce que :
-
-• Schéma variable
-
-• JSON naturel
-
-• Pas besoin de JOINS lourds
-
-• Écriture rapide
-
-#### 🎓 Pourquoi Mongo ?
-
-• Modèle document
-
-• Flexible
-
-• Idéal pour texte
-
-• Courant en data engineering
-
-Mongo permet ainsi un stockage flexible des avis.
-
-### Résumé : 
-
-| Technologie | Rôle               | Pourquoi ?                         |
-| ----------- | ------------------ | --------------------------------- |
-| MinIO       | Data Lake          | Stockage objet brut et transformé |
-| PostgreSQL  | Base relationnelle | Données structurées + SQL         |
-| MongoDB     | Base document      | Avis flexibles JSON               |
-| Docker      | Isolation          | Reproductibilité                  |
-| .env        | Config             | Sécurité                          |
-
-
-## Application par bloc
-
-### BC01 — Collecte, Data Lake & ETL
-
-* Application concrète :
-    • Collecte multi-sources : API livres, fichiers CSV/JSON, avis textuels.
-    • Mise en place d’un Data Lake bronze/silver/gold (MinIO / S3).
-    • ETL Python + PySpark pour volumes importants.
-    • Chargement dans :
-        ◦ PostgreSQL (analytique marché),
-        ◦ MongoDB (avis texte).
-
-### BC02 — Analyse exploratoire & décisionnelle
-
-* Application concrète :
-    • Analyse du marché :
-        ◦ répartition par genres, langues, périodes,
-        ◦ évolution des tendances (genres émergents),
-        ◦ comparaison notes ↔ caractéristiques (pages, genre, ancienneté).
-    • Statistiques : corrélations, tests d’hypothèses.
-    • Visualisation : dashboards (Plotly).
-
-### BC03 — Machine Learning & recommandation
-
-* Application concrète :
-    • Prédiction :
-        ◦ note moyenne d’un livre,
-        ◦ probabilité de succès/popularité.
-    • Segmentation :
-        ◦ clustering de livres (styles/genres latents).
-    • Recommandation :
-        ◦ content-based (genres + texte),
-        ◦ collaborative filtering (si données utilisateurs),
-        ◦ score hybride (analyse marché + préférences utilisateur).
-
-### BC04 — NLP & Deep Learning
-
-* Application concrète :
-    • Nettoyage et vectorisation des résumés et avis.
-    • Analyse de sentiment des avis lecteurs.
-    • Embeddings de texte pour :
-        ◦ enrichir la recommandation,
-        ◦ détecter thématiques dominantes par genre.
-    • Modèles avancés (Transformers en option).
-
-### BC05 — Industrialisation, API & déploiement
-
-* Application concrète :
-    • API FastAPI :
-        ◦ /market/insights → tendances & statistiques,
-        ◦ /recommend → recommandations personnalisées,
-        ◦ /sentiment → analyse d’avis.
-    • Dockerisation complète (ETL + API + services).
-    • Suivi des modèles avec MLflow.
-    • Déploiement local (et cloud en option).
-
-### BC06 — Gestion de projet & vulgarisation
-
-* Application concrète :
-    • Cadrage produit (éditeur/librairie).
-    • Roadmap MVP → V2.
-    • Indicateurs : qualité data, performances modèles, usage API.
-    • Présentation orientée aide à la décision pour non-techniques.
-
-## Sources de données : 
-
-    • Open Library
-    • Google Books API
-    • Kaggle (Goodreads / Book reviews)
-    • Project Gutenberg (domaine public)
-
-
-### BX-Books.csv
-
-#### Problèmes
-
-- Années incohérentes (0, 1378, 20230…)
-
-- ISBN parfois dupliqués
-
-- Encodage spécial (latin-1 souvent nécessaire)
-
-- Titres avec caractères spéciaux
-
-#### Nettoyage en Silver
-
-- Année valide (entre 1900 et année actuelle)
-
-- Suppression doublons ISBN
-
-- Normalisation colonnes
-
-- Conversion types
-
-### BX-Users.csv
-
-#### Problèmes
-- Beaucoup d’âges manquants
-
-- Ages absurdes (0, 200)
-
-- Location non structurée (“City, State, Country” en string)
-
-#### Nettoyage en Silver
-- Extraire Country depuis Location
-
-- Filtrer âges improbables (ex: < 10 ou > 100)
-
-- Gérer nulls
-
-### BX-Book-Ratings.csv
-
-On ne garde que les ratings > 0 car données explicites venat de l'utilisateur (0 => pas de retour de l'utilisateur)
-
-## Architecture Data : 
-Kaggle => Book-Crossing: User review ratings
-
-
-Bronze → nettoyage → silver
-Silver → feature engineering → gold
-Gold → ML
-
-
-
-## Structure du projet : 
-
+# BiblioTech
+
+## Présentation
+
+BiblioTech est une plateforme data de recherche et de recommandation de
+livres construite à partir du dataset Book-Crossing.
+
+Le projet met en œuvre une chaîne complète allant des données brutes
+jusqu'à une application interactive :
+
+-   Data Lake local avec **MinIO** ;
+-   pipelines ETL en **Python / Pandas** ;
+-   stockage relationnel avec **PostgreSQL** ;
+-   système de recommandation collaborative avec **scikit-learn** ;
+-   API REST avec **FastAPI** ;
+-   interface utilisateur avec **Streamlit**.
+
+Les données sont organisées selon une architecture **Bronze / Silver /
+Gold**.
+
+## Objectifs du projet
+
+-   ingérer les données brutes du dataset Book-Crossing ;
+-   construire un pipeline ETL reproductible ;
+-   nettoyer et normaliser les données ;
+-   stocker les données dans un Data Lake compatible S3 ;
+-   distinguer les éditions ISBN des œuvres logiques via `book_key` ;
+-   charger les données utiles dans PostgreSQL ;
+-   produire des indicateurs analytiques de popularité ;
+-   entraîner un système de recommandation ;
+-   exposer les fonctionnalités via une API ;
+-   proposer une interface de recherche et de recommandation.
+
+## Architecture
+
+``` text
+Book-Crossing
+    |
+    | CSV
+    v
+MinIO Data Lake
+    |-- Bronze : données brutes
+    |-- Silver : données nettoyées
+    `-- Gold   : données agrégées
+          |
+          +----------+
+          |          |
+          v          v
+     PostgreSQL      ML
+          |          |
+          |    Modèle item-based
+          |    Similarité cosinus
+          |          |
+          +----+-----+
+               v
+            FastAPI
+               |
+               v
+           Streamlit
+```
+
+## Documentation
+
+-   `docs/architecture.md`
+-   `docs/data_dictionary.md`
+
+## Arborescence
+
+``` text
 BiblioTech/
 ├── config/
 │   ├── .env
 │   └── settings.yaml
-
 ├── data/
 │   ├── bronze/
-│   │   ├── openlibrary_books_raw.jsonl
-│   │   ├── googlebooks_raw.jsonl
-│   │   └── reviews_raw.jsonl
 │   ├── silver/
-│   │   ├── books_clean.parquet
-│   │   ├── authors_clean.parquet
-│   │   └── reviews_clean.parquet
 │   └── gold/
-│       ├── market_kpis.parquet          # analytics marché
-│       ├── book_features.parquet        # features ML
-│       └── reco_candidates.parquet      # tables prêtes reco
-
+├── models/
+│   └── reco/
+│       ├── similarity.joblib
+│       ├── book_index_map.joblib
+│       └── book_metadata.joblib
 ├── src/
-    ├── __init__.py
-|   ├── frontend/  # ajout d'un front léger grâce à Streamlit
-│       ├── app.py
-│       ├── pages/
-            ├── market.py
-            ├── recommend.py
-            └── sentiment.py
-│        └── components/
 │   ├── extractors/
-        ├── __init__.py
-│   │   ├── openlibrary_api.py
-│   │   ├── googlebooks_api.py
-│   │   └── reviews_scraper.py           # optionnel si scraping
 │   ├── transformers/
-        ├── __init__.py
-│   │   ├── clean_books.py
-│   │   ├── clean_reviews.py
-│   │   ├── build_gold_tables.py
-│   │   └── quality_checks.py
 │   ├── loaders/
-        ├── __init__.py
-│   │   ├── minio_loader.py
-│   │   ├── postgres_loader.py
-│   │   └── mongo_loader.py
 │   ├── ml/
-        ├── __init__.py
-│   │   ├── train_rating.py              # prédire note / succès
-│   │   ├── train_reco.py                # reco content-based / hybride
-│   │   ├── evaluate.py
-│   │   └── mlflow_registry.py
 │   ├── api/
-        ├── __init__.py
-│   │   ├── app.py
-│   │   ├── schemas.py
-│   │   ├── routes/
-│   │   │   ├── market.py                # insights marché
-│   │   │   ├── recommend.py             # reco
-│   │   │   └── sentiment.py             # avis
-│   │   └── services/
-│   │       ├── market_service.py
-│   │       ├── reco_service.py
-│   │       └── sentiment_service.py
 │   ├── utils/
-│   │   ├── config.py
-│   │   ├── logging.py
-│   │   └── io.py
 │   └── main.py
-
 ├── sql/
 │   ├── schema.sql
+│   ├── app_schema.sql
 │   └── views.sql
-
 ├── notebooks/
-│   ├── 01_eda_books.ipynb
-│   ├── 02_eda_reviews.ipynb
-│   └── 03_modeling.ipynb
-
 ├── dashboards/
-│   ├── market_dashboard.py              # plotly/streamlit/dash
-│   └── exports/                         # png/html/csv
-
 ├── docs/
-│   ├── architecture.md
-│   ├── data_dictionary.md
-│   └── ethics_and_limits.md
-
-├── tests/
-│   ├── test_extractors.py
-│   ├── test_transformers.py
-│   ├── test_quality_checks.py
-│   └── test_api.py
-
 ├── docker-compose.yml
 ├── Dockerfile
 ├── .gitignore
 ├── README.md
 └── requirements.txt
+```
 
+## Dataset
 
-# Lancer le projet 
+Le projet utilise principalement le dataset **Book-Crossing** :
+
+-   `BX-Book-Ratings.csv`
+-   `BX_Books.csv`
+-   `BX-Users.csv`
+
+## Identification des œuvres
+
+Le dataset original utilise l'ISBN comme identifiant. Un ISBN représente
+une **édition** d'un livre et non nécessairement une œuvre logique.
+
+BiblioTech génère donc un identifiant `book_key` à partir du titre et de
+l'auteur normalisés.
+
+Exemple : `1984|george orwell`
+
+Le système de recommandation travaille principalement au niveau de
+l'œuvre (`book_key`) plutôt qu'au niveau de l'édition (`isbn`).
+
+## Couches de données
+
+### Bronze
+
+-   `BX-Book-Ratings.csv`
+-   `BX_Books.csv`
+-   `BX-Users.csv`
+
+### Silver
+
+-   `ratings_clean.parquet`
+-   `books_clean.parquet`
+-   `users_clean.parquet`
+-   `ratings_joinable.parquet`
+
+`ratings_joinable.parquet` contient les ratings valides au niveau
+`user_id × book_key`.
+
+### Gold
+
+-   `book_popularity.parquet`
+
+Cette table contient notamment le nombre de ratings, la note moyenne et
+un score de popularité pondéré.
+
+## PostgreSQL
+
+### Données historiques
+
+-   `books`
+-   `users`
+-   `ratings`
+-   `book_popularity`
+
+### Données applicatives
+
+-   `app_users`
+-   `user_book_ratings`
+
+Cette séparation distingue les utilisateurs historiques ayant servi à
+construire le modèle des utilisateurs réels de l'application.
+
+## Système de recommandation
+
+BiblioTech utilise un système de recommandation **collaboratif
+item-based**.
+
+Les **5 000 œuvres les plus notées** sont sélectionnées puis
+représentées dans une matrice sparse `utilisateurs × œuvres`. Une
+similarité cosinus est calculée entre les œuvres.
+
+Artefacts générés dans `models/reco/` :
+
+-   `similarity.joblib`
+-   `book_index_map.joblib`
+-   `book_metadata.joblib`
+
+### Entraîner le modèle
+
+``` powershell
+python -m src.ml.train_reco
+```
+
+### Tester une recommandation
+
+``` powershell
+python -m src.ml.predict --book_key "1984|george orwell" --top_n 5
+```
+
+## API FastAPI
+
+Principaux endpoints :
+
+``` text
+GET  /books/search
+GET  /recommend/book
+GET  /recommend/user/{app_user_id}
+POST /users
+POST /ratings
+```
+
+Lancer l'API :
+
+``` powershell
+uvicorn src.api.app:app --reload
+```
+
+Documentation interactive : `/docs`.
+
+## Interface Streamlit
+
+L'interface permet de rechercher un livre, sélectionner une œuvre,
+afficher ses métadonnées et sa couverture, puis obtenir des
+recommandations.
+
+``` powershell
+streamlit run src/front/app.py
+```
+
+## Infrastructure
+
+Les principaux services sont :
+
+-   **MinIO** : stockage objet compatible S3 ;
+-   **PostgreSQL** : base relationnelle ;
+-   **pgAdmin** : administration PostgreSQL.
+
+``` powershell
+docker compose up -d
+```
+
+## Configuration
+
+Le fichier `config/.env` contient les variables nécessaires à MinIO et
+PostgreSQL. Il ne doit pas être versionné.
+
+## Installation
+
+``` powershell
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+## Exécution du pipeline ETL
+
+### Étapes individuelles
+
+``` powershell
+python -m src.main clean_ratings
+python -m src.main clean_books
+python -m src.main clean_users
+python -m src.main filter_joinable_ratings
+python -m src.main build_book_popularity
+python -m src.main load_postgres
+```
+
+### Pipeline complet
+
+``` powershell
 python -m src.main full_pipeline
+```
+
+Après une modification affectant `book_key` ou les ratings utilisés par
+le modèle :
+
+``` powershell
+python -m src.ml.train_reco
+```
+
+## Initialisation PostgreSQL
+
+### Tables du dataset
+
+``` powershell
+Get-Content .\sql\schema.sql | docker exec -i bibliotech_postgres psql -U bibliotech -d bibliotech_db
+```
+
+### Tables applicatives
+
+``` powershell
+Get-Content .\sql\app_schema.sql | docker exec -i bibliotech_postgres psql -U bibliotech -d bibliotech_db
+```
+
+### Vues
+
+``` powershell
+Get-Content .\sql\views.sql | docker exec -i bibliotech_postgres psql -U bibliotech -d bibliotech_db
+```
+
+## Exemple de recommandation
+
+À partir de `1984 — George Orwell`, le système peut notamment identifier
+:
+
+-   Animal Farm --- George Orwell
+-   Brave New World --- Aldous Huxley
+-   Lord of the Flies --- William Gerald Golding
+
+## Limites actuelles
+
+-   dataset Book-Crossing ancien et statique ;
+-   qualité hétérogène des métadonnées ;
+-   `book_key` construit heuristiquement à partir du titre et de
+    l'auteur ;
+-   certaines traductions ou variantes peuvent être considérées comme
+    des œuvres distinctes ;
+-   modèle limité aux 5 000 œuvres les plus notées ;
+-   cold start pour les nouveaux utilisateurs sans ratings ;
+-   certaines couvertures externes peuvent devenir indisponibles ;
+-   pipeline non orchestré automatiquement.
+
+## Évolutions possibles
+
+-   enrichissement via Open Library ou Google Books ;
+-   amélioration de la résolution des œuvres ;
+-   système hybride collaboratif + contenu ;
+-   stratégie de recommandation pour le cold start ;
+-   évaluation quantitative du modèle ;
+-   orchestration automatique du pipeline ;
+-   automatisation du réentraînement ;
+-   tests automatisés et monitoring.
+
+## Technologies
+
+  Technologie    Utilisation
+  -------------- --------------------------------
+  Python         Développement principal
+  Pandas         ETL et préparation des données
+  MinIO          Data Lake compatible S3
+  Parquet        Stockage analytique
+  PostgreSQL     Base relationnelle
+  SQLAlchemy     Accès PostgreSQL
+  SciPy          Matrices sparse
+  scikit-learn   Similarité cosinus
+  joblib         Sérialisation du modèle
+  FastAPI        API REST
+  Streamlit      Interface utilisateur
+  Docker         Infrastructure
+  ftfy           Correction d'encodage
+
+## Conclusion
+
+BiblioTech met en œuvre une architecture data complète allant de
+l'ingestion de données brutes jusqu'à leur exploitation dans une
+application de recommandation.
+
+Le projet combine Data Engineering, SQL, Machine Learning, API et
+visualisation dans une architecture cohérente centrée sur les œuvres
+identifiées par `book_key`.

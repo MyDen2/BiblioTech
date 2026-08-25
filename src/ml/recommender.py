@@ -3,93 +3,205 @@ from pathlib import Path
 import joblib
 
 from src.utils.logger import setup_logger
-from src.utils.s3_io import read_parquet_from_s3
+
 
 logger = setup_logger("recommender")
 
 MODEL_DIR = Path("models/reco")
 
 
+# =========================
+# Chargement des artefacts
+# =========================
+
 def load_artifacts():
-    """Charge les artefacts du modèle de recommandation."""
+    """
+    Charge les artefacts du modèle de recommandation.
+    """
     logger.info("Loading recommendation artifacts")
 
-    similarity = joblib.load(MODEL_DIR / "similarity.joblib")
-    book_index_map = joblib.load(MODEL_DIR / "book_index_map.joblib")
-    book_metadata = joblib.load(MODEL_DIR / "book_metadata.joblib")
+    similarity = joblib.load(
+        MODEL_DIR / "similarity.joblib"
+    )
 
-    return similarity, book_index_map, book_metadata
+    book_index_map = joblib.load(
+        MODEL_DIR / "book_index_map.joblib"
+    )
+
+    book_metadata = joblib.load(
+        MODEL_DIR / "book_metadata.joblib"
+    )
+
+    return (
+        similarity,
+        book_index_map,
+        book_metadata
+    )
 
 
-def load_user_ratings():
-    """Charge les ratings préparés pour la recommandation utilisateur."""
-    logger.info("Loading ratings_pre_ml from S3")
-    return read_parquet_from_s3("gold", "ratings_pre_ml.parquet")
+# =========================
+# Recommandation par œuvre
+# =========================
 
+def recommend_books(
+    book_key,
+    similarity,
+    book_index_map,
+    book_metadata,
+    top_n=5
+):
+    """
+    Recommande des œuvres similaires
+    à partir d'un book_key.
+    """
 
-def recommend_books(isbn, similarity, book_index_map, book_metadata, top_n=5):
-    """Recommande des livres similaires à un livre donné."""
-    if isbn not in book_index_map:
-        logger.warning(f"ISBN not found in model: {isbn}")
+    if book_key not in book_index_map:
+        logger.warning(
+            f"Book key not found in model: {book_key}"
+        )
         return []
 
-    idx = book_index_map[isbn]
-    scores = list(enumerate(similarity[idx]))
-    scores = sorted(scores, key=lambda x: x[1], reverse=True)
+    idx = book_index_map[book_key]
+
+    scores = list(
+        enumerate(similarity[idx])
+    )
+
+    scores = sorted(
+        scores,
+        key=lambda x: x[1],
+        reverse=True
+    )
+
+    # Exclure l'œuvre elle-même
     scores = scores[1:top_n + 1]
 
-    reverse_map = {v: k for k, v in book_index_map.items()}
+    reverse_map = {
+        index: key
+        for key, index
+        in book_index_map.items()
+    }
 
     recommendations = []
 
-    for i, score in scores:
-        rec_isbn = reverse_map[i]
+    for book_idx, score in scores:
 
-        if rec_isbn in book_metadata.index:
-            recommendations.append({
-                "isbn": rec_isbn,
-                "title": book_metadata.loc[rec_isbn, "title"],
-                "author": book_metadata.loc[rec_isbn, "author"],
-                "similarity_score": round(float(score), 3),
-            })
+        rec_book_key = reverse_map[book_idx]
+
+        if rec_book_key not in book_metadata.index:
+            continue
+
+        metadata = book_metadata.loc[
+            rec_book_key
+        ]
+
+        recommendations.append({
+            "book_key": rec_book_key,
+            "title": metadata["title"],
+            "author": metadata["author"],
+            "similarity_score": round(
+                float(score),
+                3
+            ),
+        })
 
     return recommendations
 
 
-def recommend_for_user(user_id, ratings, similarity, book_index_map, book_metadata, top_n=5):
-    """Recommande des livres personnalisés à partir d'un user_id."""
-    user_ratings = ratings[ratings["user_id"] == user_id]
+# =========================
+# Recommandation utilisateur BiblioTech
+# =========================
 
-    if user_ratings.empty:
-        logger.warning(f"User not found: {user_id}")
+def recommend_for_app_user(
+    user_ratings,
+    similarity,
+    book_index_map,
+    book_metadata,
+    top_n=5
+):
+    """
+    Recommande des œuvres à un utilisateur BiblioTech
+    à partir des notes enregistrées dans l'application.
+    """
+
+    if not user_ratings:
+        logger.warning(
+            "No ratings found for app user"
+        )
         return []
 
-    liked_books = user_ratings[user_ratings["rating"] >= 7]["isbn"].tolist()
-    already_seen = set(user_ratings["isbn"].tolist())
+    # Œuvres appréciées
+    liked_books = [
+        item["book_key"]
+        for item in user_ratings
+        if item["rating"] >= 7
+    ]
+
+    # Œuvres déjà notées
+    already_seen = {
+        item["book_key"]
+        for item in user_ratings
+    }
 
     if not liked_books:
-        logger.warning(f"No liked books found for user: {user_id}")
+        logger.warning(
+            "No liked books found for app user"
+        )
         return []
 
-    reverse_map = {v: k for k, v in book_index_map.items()}
+    reverse_map = {
+        index: book_key
+        for book_key, index
+        in book_index_map.items()
+    }
+
     candidate_scores = {}
 
-    for isbn in liked_books:
-        if isbn not in book_index_map:
+    # =========================
+    # Génération des candidats
+    # =========================
+
+    for book_key in liked_books:
+
+        # Une œuvre peut exister dans PostgreSQL
+        # sans faire partie des 5000 œuvres du modèle.
+        if book_key not in book_index_map:
             continue
 
-        idx = book_index_map[isbn]
-        scores = list(enumerate(similarity[idx]))
+        idx = book_index_map[book_key]
+
+        scores = list(
+            enumerate(similarity[idx])
+        )
 
         for book_idx, score in scores:
-            candidate_isbn = reverse_map[book_idx]
 
-            if candidate_isbn in already_seen:
+            candidate_book_key = reverse_map[
+                book_idx
+            ]
+
+            if candidate_book_key in already_seen:
                 continue
 
-            candidate_scores[candidate_isbn] = (
-                candidate_scores.get(candidate_isbn, 0) + float(score)
+            candidate_scores[
+                candidate_book_key
+            ] = (
+                candidate_scores.get(
+                    candidate_book_key,
+                    0
+                )
+                + float(score)
             )
+
+    if not candidate_scores:
+        logger.warning(
+            "No recommendation candidates found for app user"
+        )
+        return []
+
+    # =========================
+    # Classement
+    # =========================
 
     sorted_candidates = sorted(
         candidate_scores.items(),
@@ -99,13 +211,23 @@ def recommend_for_user(user_id, ratings, similarity, book_index_map, book_metada
 
     recommendations = []
 
-    for isbn, score in sorted_candidates:
-        if isbn in book_metadata.index:
-            recommendations.append({
-                "isbn": isbn,
-                "title": book_metadata.loc[isbn, "title"],
-                "author": book_metadata.loc[isbn, "author"],
-                "similarity_score": round(float(score), 3),
-            })
+    for book_key, score in sorted_candidates:
+
+        if book_key not in book_metadata.index:
+            continue
+
+        metadata = book_metadata.loc[
+            book_key
+        ]
+
+        recommendations.append({
+            "book_key": book_key,
+            "title": metadata["title"],
+            "author": metadata["author"],
+            "similarity_score": round(
+                float(score),
+                3
+            )
+        })
 
     return recommendations

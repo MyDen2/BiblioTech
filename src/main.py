@@ -9,6 +9,7 @@ from src.transformers.clean_users import main as clean_users_main
 from src.transformers.filter_joinable_ratings import main as filter_joinable_ratings_main
 from src.transformers.build_book_popularity import main as build_book_popularity_main
 from src.loaders.postgres_loader import main as postgres_loader_main
+from src.loaders.init_database import main as init_database_main
 
 logger = setup_logger("main")
 
@@ -27,6 +28,7 @@ def run_full_pipeline() -> None:
     run_step("clean_users", clean_users_main)
     run_step("filter_joinable_ratings", filter_joinable_ratings_main)
     run_step("build_book_popularity", build_book_popularity_main)
+    run_step("init_database", init_database_main)
     run_step("load_postgres", postgres_loader_main)
 
     logger.info("Full BiblioTech pipeline completed successfully")
@@ -45,6 +47,7 @@ def parse_args():
             "clean_users",
             "filter_joinable_ratings",
             "build_book_popularity",
+            "init_database",
             "load_postgres",
             "full_pipeline",
         ],
@@ -72,6 +75,9 @@ def main() -> None:
 
         elif args.command == "build_book_popularity":
             run_step("build_book_popularity", build_book_popularity_main)
+
+        elif args.command == "init_database":
+            run_step("init_database", init_database_main)
 
         elif args.command == "load_postgres":
             run_step("load_postgres", postgres_loader_main)
