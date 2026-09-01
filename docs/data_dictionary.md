@@ -339,6 +339,32 @@ Les principaux artefacts générés sont :
 `book_index_map` associe chaque `book_key` présent dans le modèle
 à sa position dans la matrice de similarité.
 
+### Données utilisées pour l'évaluation du modèle
+
+L'évaluation offline du système de recommandation est réalisée par :
+
+`src/ml/evaluate_reco.py`
+
+Elle utilise :
+
+- `ratings_joinable.parquet` comme source des interactions historiques ;
+- `book_index_map.joblib` pour limiter l'évaluation aux œuvres présentes
+  dans le catalogue du modèle ;
+- `similarity.joblib` pour générer les recommandations item-based ;
+- `book_metadata.joblib` pour récupérer les métadonnées des œuvres.
+
+Une œuvre est considérée comme appréciée pour l'évaluation lorsque :
+
+`rating >= 7`
+
+Le protocole utilise un échantillon d'utilisateurs possédant au moins
+deux œuvres appréciées et masque une œuvre afin de mesurer la capacité
+du système à la retrouver dans les recommandations.
+
+Une baseline de popularité est également construite à partir de la
+fréquence des œuvres appréciées afin de disposer d'un modèle de
+référence.
+
 ---
 
 ## 9. Limites des données

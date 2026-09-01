@@ -313,7 +313,112 @@ lorsqu'un nouvel utilisateur s'inscrit ou ajoute une note.
 
 ---
 
-## 10. API FastAPI
+---
+
+## 10. Évaluation du système de recommandation
+
+Le système de recommandation fait l'objet d'une évaluation offline afin
+de mesurer quantitativement sa capacité à retrouver des œuvres pertinentes.
+
+Le script d'évaluation est disponible dans :
+
+`src/ml/evaluate_reco.py`
+
+### 10.1 Protocole d'évaluation
+
+L'évaluation utilise une approche de type **leave-one-out**.
+
+Elle est réalisée sur un échantillon de 1 000 utilisateurs historiques
+possédant au moins deux œuvres appréciées, une œuvre étant considérée
+comme appréciée lorsque sa note est supérieure ou égale à 7/10.
+
+L'évaluation est limitée aux œuvres appartenant au catalogue des
+5 000 œuvres utilisées par le modèle.
+
+Pour chaque utilisateur :
+
+1. une œuvre appréciée est masquée et utilisée comme vérité terrain ;
+2. les autres œuvres appréciées constituent le profil connu ;
+3. le système génère un Top 5 de recommandations ;
+4. les recommandations sont comparées à l'œuvre masquée.
+
+Cette approche permet d'évaluer la capacité du modèle à retrouver une
+préférence connue à partir des autres préférences de l'utilisateur.
+
+### 10.2 Métriques
+
+Quatre indicateurs sont utilisés :
+
+- **Precision@5** : proportion d'œuvres pertinentes parmi les cinq
+  recommandations ;
+- **Recall@5** : proportion des œuvres pertinentes retrouvées dans le
+  Top 5 ;
+- **HitRate@5** : proportion d'utilisateurs pour lesquels au moins une
+  œuvre pertinente apparaît dans le Top 5 ;
+- **Coverage** : proportion du catalogue apparaissant dans les
+  recommandations générées.
+
+Dans le protocole leave-one-out utilisé ici, une seule œuvre pertinente
+est masquée par utilisateur. `Recall@5` et `HitRate@5` prennent donc la
+même valeur.
+
+### 10.3 Résultats
+
+Les résultats obtenus sur 1 000 utilisateurs sont :
+
+| Métrique | Résultat |
+|---|---:|
+| Precision@5 | 0,0386 |
+| Recall@5 | 0,1930 |
+| HitRate@5 | 0,1930 |
+| Coverage | 0,4110 |
+
+Le modèle retrouve donc l'œuvre masquée dans son Top 5 pour 19,3 % des
+utilisateurs évalués.
+
+Les recommandations produites pendant cette évaluation couvrent 41,1 %
+du catalogue de 5 000 œuvres utilisé par le modèle.
+
+### 10.4 Baseline de popularité
+
+Afin de disposer d'un point de comparaison, le filtrage collaboratif
+est évalué face à une baseline simple fondée sur la popularité.
+
+Cette baseline recommande les œuvres appréciées les plus fréquentes,
+en excluant celles déjà utilisées pour constituer le profil connu de
+l'utilisateur.
+
+| Méthode | HitRate@5 |
+|---|---:|
+| Baseline popularité | 0,0230 |
+| Filtrage collaboratif item-based | 0,1930 |
+
+Le filtrage collaboratif améliore ainsi le HitRate@5 de **0,1700**,
+soit **17 points**, par rapport à la baseline.
+
+Son HitRate@5 est environ **8,4 fois supérieur** à celui de la stratégie
+de popularité.
+
+Cette comparaison met en évidence l'apport du signal collaboratif par
+rapport à une stratégie globale ne tenant pas compte du profil de
+l'utilisateur.
+
+### 10.5 Limites du protocole
+
+L'évaluation actuelle réutilise la matrice de similarité calculée lors
+de l'entraînement sur l'ensemble des interactions historiques.
+
+Elle fournit donc une comparaison reproductible entre le filtrage
+collaboratif et la baseline, mais elle ne constitue pas une évaluation
+totalement isolée des données ayant servi à construire les similarités.
+
+Par ailleurs, le dataset Book-Crossing ne fournit pas de timestamps
+d'évaluation exploitables permettant de réaliser directement une
+validation temporelle.
+
+---
+
+## 11. API FastAPI
 
 FastAPI expose les principales fonctionnalités de BiblioTech.
 
@@ -337,7 +442,7 @@ L'identifiant fonctionnel utilisé pour les œuvres est `book_key`.
 
 ---
 
-## 11. Interface Streamlit
+## 12. Interface Streamlit
 
 Une interface Streamlit consomme l'API FastAPI.
 
@@ -354,7 +459,7 @@ Les couvertures sont obtenues à partir des URLs présentes dans le dataset.
 
 ---
 
-## 12. Vues SQL
+## 13. Vues SQL
 
 Des vues SQL peuvent être utilisées pour simplifier les analyses métier,
 notamment :
@@ -370,7 +475,7 @@ requêtes d'agrégation.
 
 ---
 
-## 13. Technologies utilisées
+## 14. Technologies utilisées
 
 | Technologie | Rôle |
 |---|---|
@@ -390,7 +495,7 @@ requêtes d'agrégation.
 
 ---
 
-## 14. Choix techniques
+## 15. Choix techniques
 
 ### Pourquoi MinIO ?
 
@@ -426,7 +531,7 @@ fourni suffisamment de ratings.
 
 ---
 
-## 15. Conclusion
+## 16. Conclusion
 
 BiblioTech met en œuvre une chaîne data complète allant des données brutes
 jusqu'à une application de recommandation.
@@ -440,6 +545,16 @@ L'architecture sépare clairement :
 - les artefacts du système de recommandation ;
 - l'exposition des fonctionnalités via FastAPI ;
 - leur utilisation dans Streamlit.
+
+La qualité du projet est vérifiée à deux niveaux complémentaires :
+
+- des tests automatisés valident le fonctionnement des principaux
+  composants logiciels ;
+- une évaluation offline mesure quantitativement les performances du
+  système de recommandation et les compare à une baseline de popularité.
+
+Les 31 tests automatisés passent et le modèle collaboratif atteint un
+HitRate@5 de 19,3 %, contre 2,3 % pour la baseline de popularité.
 
 L'utilisation de `book_key` permet enfin de raisonner principalement au
 niveau de l'œuvre plutôt qu'au niveau de chaque édition ISBN.

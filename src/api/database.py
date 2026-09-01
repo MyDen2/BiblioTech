@@ -31,26 +31,94 @@ def get_engine():
 
 engine = get_engine()
 
-
-def create_app_user(username: str, email: str, age: int | None, country: str | None):
+def create_app_user(
+    username: str,
+    email: str,
+    password_hash: str,
+    age: int | None,
+    country: str | None
+):
     query = text("""
-        INSERT INTO app_users (username, email, age, country)
-        VALUES (:username, :email, :age, :country)
-        RETURNING app_user_id, username, email, age, country, created_at;
+        INSERT INTO app_users (
+            username,
+            email,
+            password_hash,
+            age,
+            country
+        )
+        VALUES (
+            :username,
+            :email,
+            :password_hash,
+            :age,
+            :country
+        )
+        RETURNING
+            app_user_id,
+            username,
+            email,
+            age,
+            country,
+            created_at;
     """)
 
     try:
         with engine.begin() as conn:
-            result = conn.execute(query, {
-                "username": username,
-                "email": email,
-                "age": age,
-                "country": country
-            })
-            return dict(result.mappings().first())
+            result = conn.execute(
+                query,
+                {
+                    "username": username,
+                    "email": email,
+                    "password_hash": password_hash,
+                    "age": age,
+                    "country": country,
+                }
+            )
+            return dict(
+                result.mappings().first()
+            )
 
     except SQLAlchemyError as e:
-        logger.error(f"Error creating app user: {e}", exc_info=True)
+        logger.error(
+            f"Error creating app user: {e}",
+            exc_info=True
+        )
+        raise
+
+
+def get_app_user_by_email(email: str):
+    query = text("""
+        SELECT
+            app_user_id,
+            username,
+            email,
+            password_hash,
+            age,
+            country,
+            created_at
+        FROM app_users
+        WHERE email = :email;
+    """)
+
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(
+                query,
+                {"email": email}
+            )
+
+            row = result.mappings().first()
+
+            if row is None:
+                return None
+
+            return dict(row)
+
+    except SQLAlchemyError as e:
+        logger.error(
+            f"Error loading app user by email: {e}",
+            exc_info=True
+        )
         raise
 
 def create_user_rating(

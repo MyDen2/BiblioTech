@@ -6,7 +6,26 @@ from src.api.database import (
     create_app_user,
     create_user_rating,
     search_books,
-    get_app_user_ratings
+    get_app_user_ratings,
+    get_app_user_by_email
+)
+
+from fastapi import (
+    Depends,
+    FastAPI,
+    HTTPException,
+    Query,
+)
+from fastapi.security import (
+    HTTPAuthorizationCredentials,
+    HTTPBearer,
+)
+
+from src.api.security import (
+    create_access_token,
+    decode_access_token,
+    hash_password,
+    verify_password,
 )
 
 from src.ml.recommender import (
@@ -22,6 +41,40 @@ app = FastAPI(
     version="2.0.0"
 )
 
+security = HTTPBearer()
+
+# ==============================
+# Récupérér l'utilisateur
+# ==============================
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(
+        security
+    ),
+):
+    try:
+        payload = decode_access_token(
+            credentials.credentials
+        )
+
+        app_user_id = int(
+            payload["sub"]
+        )
+
+        return {
+            "app_user_id": app_user_id,
+            "email": payload.get("email"),
+        }
+
+    except (
+        ValueError,
+        KeyError,
+        TypeError,
+    ):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired token",
+        )
 
 # =========================
 # Chargement des artefacts ML
@@ -42,6 +95,12 @@ class UserCreate(BaseModel):
 
     email: EmailStr
 
+    password: str = Field(
+        ...,
+        min_length=8,
+        max_length=128
+    )
+
     age: int | None = Field(
         default=None,
         ge=10,
@@ -52,7 +111,6 @@ class UserCreate(BaseModel):
 
 
 class RatingCreate(BaseModel):
-    app_user_id: int
     book_key: str
     rating: int = Field(
         ...,
@@ -60,6 +118,14 @@ class RatingCreate(BaseModel):
         le=10
     )
 
+class LoginRequest(BaseModel):
+    email: EmailStr
+
+    password: str = Field(
+        ...,
+        min_length=8,
+        max_length=128
+    )
 
 # =========================
 # Accueil
@@ -72,8 +138,9 @@ def root():
         "endpoints": [
             "/books/search",
             "/recommend/book",
-            "/recommend/user/{user_id}",
+            "/recommend/user",
             "/users",
+            "/login",
             "/ratings",
             "/docs"
         ]
@@ -150,15 +217,21 @@ def recommend_by_book(
 # Recommandation utilisateur
 # =========================
 
-@app.get("/recommend/user/{app_user_id}")
+@app.get("/recommend/user")
 def recommend_by_user(
-    app_user_id: int,
     top_n: int = Query(
         default=5,
         ge=1,
         le=20
-    )
+    ),
+    current_user: dict = Depends(
+        get_current_user
+    ),
 ):
+    app_user_id = current_user[
+        "app_user_id"
+    ]
+
     user_ratings = get_app_user_ratings(
         app_user_id
     )
@@ -192,19 +265,21 @@ def recommend_by_user(
         "recommendations": recommendations
     }
 
-
 # =========================
 # Création utilisateur
 # =========================
 
 @app.post("/users")
-def create_user(
-    user: UserCreate
-):
+def create_user(user: UserCreate):
     try:
+        password_hash = hash_password(
+            user.password
+        )
+
         created_user = create_app_user(
             username=user.username,
             email=user.email,
+            password_hash=password_hash,
             age=user.age,
             country=user.country
         )
@@ -226,18 +301,89 @@ def create_user(
             detail="Database error while creating user"
         )
 
+# =========================
+# Login
+# =========================
 
+@app.post("/login")
+def login(credentials: LoginRequest):
+    try:
+        user = get_app_user_by_email(
+            credentials.email
+        )
+
+        if user is None:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid email or password"
+            )
+
+        password_hash = user.get(
+            "password_hash"
+        )
+
+        if not password_hash:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid email or password"
+            )
+
+        if not verify_password(
+            credentials.password,
+            password_hash
+        ):
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid email or password"
+            )
+
+        access_token = create_access_token(
+            app_user_id=user["app_user_id"],
+            email=user["email"],
+        )
+
+        return {
+            "message": "Login successful",
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": {
+                "app_user_id": user[
+                    "app_user_id"
+                ],
+                "username": user[
+                    "username"
+                ],
+                "email": user[
+                    "email"
+                ],
+            }
+        }
+
+    except HTTPException:
+        raise
+
+    except SQLAlchemyError:
+        raise HTTPException(
+            status_code=500,
+            detail="Database error while logging in"
+        )
+        
 # =========================
 # Notation d'une œuvre
 # =========================
 
 @app.post("/ratings")
 def add_rating(
-    rating: RatingCreate
+    rating: RatingCreate,
+    current_user: dict = Depends(
+        get_current_user
+    ),
 ):
     try:
         created_rating = create_user_rating(
-            app_user_id=rating.app_user_id,
+            app_user_id=current_user[
+                "app_user_id"
+            ],
             book_key=rating.book_key,
             rating=rating.rating
         )
@@ -250,7 +396,7 @@ def add_rating(
     except IntegrityError:
         raise HTTPException(
             status_code=400,
-            detail="Invalid app_user_id or book_key"
+            detail="Invalid book_key"
         )
 
     except SQLAlchemyError:
