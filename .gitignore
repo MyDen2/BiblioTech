@@ -6,3 +6,18 @@ data/bronze/*
 .venv/
 
 models/reco/*
+
+.vscode/
+.idea/
+
+.DS_Store
+Thumbs.db
+
+
+.pytest_cache/
+.coverage
+htmlcov/
+
+__pycache__/
+*.py[cod]
+*.pyo
